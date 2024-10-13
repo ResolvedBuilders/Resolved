@@ -1,4 +1,3 @@
-
 const express = require('express');
 const axios = require('axios');
 const cron = require('node-cron');
@@ -36,18 +35,22 @@ passport.use(new GitHubStrategy({
 },
 async function(accessToken, refreshToken, profile, done) {
   try {
-    const user = await edgedbClient.querySingle(\`
-      SELECT (INSERT User {
+    const user = await edgedbClient.querySingle(
+      `
+      INSERT User {
         github_id := <str>$github_id,
         username := <str>$username
-      } UNLESS CONFLICT ON .github_id
-      ELSE (
-        UPDATE User SET { username := <str>$username }
-      ))
-    \`, {
-      github_id: profile.id,
-      username: profile.username
-    });
+      }
+      UNLESS CONFLICT ON .github_id ELSE (
+        UPDATE User SET {
+          username := <str>$username
+        }
+      )`,
+      {
+        github_id: profile.id,
+        username: profile.username
+      }
+    );
     done(null, user);
   } catch (error) {
     done(error);
@@ -60,14 +63,16 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (id, done) => {
   try {
-    const user = await edgedbClient.querySingle(\`
+    const user = await edgedbClient.querySingle(
+      `
       SELECT User {
         id,
         github_id,
         username
       }
-      FILTER .id = <uuid>$id
-    \`, { id });
+      FILTER .id = <uuid>$id`,
+      { id }
+    );
     done(null, user);
   } catch (error) {
     done(error);
@@ -86,10 +91,10 @@ async function updateProxyLists() {
   for (const [type, url] of Object.entries(proxyLists)) {
     try {
       const response = await axios.get(url);
-      fs.writeFileSync(\`./data/\${type}.txt\`, response.data);
-      console.log(\`Updated \${type} proxy list\`);
+      fs.writeFileSync(`./data/${type}.txt`, response.data);
+      console.log(`Updated ${type} proxy list`);
     } catch (error) {
-      console.error(\`Error updating \${type} proxy list:\`, error.message);
+      console.error(`Error updating ${type} proxy list:`, error.message);
     }
   }
 }
@@ -105,7 +110,7 @@ app.get('/api/proxies/:type', (req, res) => {
   }
 
   try {
-    const proxyList = fs.readFileSync(\`./data/\${type}.txt\`, 'utf-8');
+    const proxyList = fs.readFileSync(`./data/${type}.txt`, 'utf-8');
     res.send(proxyList);
   } catch (error) {
     res.status(500).json({ error: 'Error reading proxy list' });
@@ -134,6 +139,6 @@ app.get('/', (req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(\`Server running on port \${PORT}\`);
+  console.log(`Server running on port ${PORT}`);
   updateProxyLists(); // Initial update
 });
