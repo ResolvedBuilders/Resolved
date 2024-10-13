@@ -37,13 +37,16 @@ async function(accessToken, refreshToken, profile, done) {
   try {
     const user = await edgedbClient.querySingle(
       `
-      INSERT User {
+      WITH
         github_id := <str>$github_id,
         username := <str>$username
+      INSERT User {
+        github_id := github_id,
+        username := username
       }
       UNLESS CONFLICT ON .github_id ELSE (
         UPDATE User SET {
-          username := <str>$username
+          username := username
         }
       )`,
       {
@@ -65,12 +68,14 @@ passport.deserializeUser(async (id, done) => {
   try {
     const user = await edgedbClient.querySingle(
       `
+      WITH
+        id := <uuid>$id
       SELECT User {
         id,
         github_id,
         username
       }
-      FILTER .id = <uuid>$id`,
+      FILTER .id = id`,
       { id }
     );
     done(null, user);
@@ -128,8 +133,9 @@ app.get('/success',
 );
 
 app.get('/logout', (req, res) => {
-  req.logout();
-  res.redirect('/');
+  req.logout(() => {
+    res.redirect('/');
+  });
 });
 
 // Serve index.html
